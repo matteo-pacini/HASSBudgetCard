@@ -532,7 +532,157 @@ function layout(spec, key, W, Hbase, rootColor, hover, showAmounts, labelH, mone
 const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+const textField = (name, label) => ({ name, label, selector: { text: {} } });
+
+const NUMBER_FIELD = { number: { mode: "box", step: "any" } };
+
+// A text field, not the date selector: that one has no way to clear a date.
+const DATE_FIELD = { text: { type: "date" } };
+
+const ENTRY_LIST = {
+  object: {
+    multiple: true,
+    label_field: "name",
+    description_field: "amount",
+    fields: {
+      name: { label: "Name", required: true, selector: { text: {} } },
+      amount: { label: "Amount", required: true, selector: NUMBER_FIELD },
+      from: { label: "From", selector: DATE_FIELD },
+      until: { label: "Until", selector: DATE_FIELD },
+    },
+  },
+};
+
+// The form for `data`. `income` and `incomes` exclude each other, so setting
+// one hides the other.
+const editorSchema = (data) => [
+  textField("title", "Title"),
+  textField("subtitle", "Subtitle"),
+  textField("root", "Root label"),
+  ...(data.incomes ? [] : [{ name: "income", label: "Income", selector: NUMBER_FIELD }]),
+  ...(data.income != null ? [] : [{ name: "incomes", label: "Incomes", selector: ENTRY_LIST }]),
+  {
+    name: "groups",
+    label: "Groups",
+    required: true,
+    selector: {
+      object: {
+        multiple: true,
+        label_field: "name",
+        fields: {
+          name: { label: "Name", required: true, selector: { text: {} } },
+          color: { label: "Colour", selector: { text: {} } },
+          items: { label: "Items", required: true, selector: ENTRY_LIST },
+        },
+      },
+    },
+  },
+  {
+    type: "expandable",
+    name: "",
+    flatten: true,
+    title: "Display",
+    schema: [
+      { name: "chart_height", label: "Chart height", selector: { number: { mode: "box", min: 1 } } },
+      { name: "show_amounts", label: "Show amounts", selector: { boolean: {} } },
+      { name: "monthly_saving", label: "Show monthly saving", selector: { boolean: {} } },
+      textField("currency", "Currency"),
+      textField("locale", "Locale"),
+    ],
+  },
+  {
+    type: "expandable",
+    name: "",
+    flatten: true,
+    title: "Colours and labels",
+    schema: [
+      textField("accent", "Accent colour"),
+      textField("positive_color", "Positive colour"),
+      textField("negative_color", "Negative colour"),
+      textField("saving_color", "Saving colour"),
+      textField("income_label", "Income label"),
+      textField("total_label", "Total label"),
+      textField("left_label", "Left label"),
+      textField("saving_label", "Saving label"),
+    ],
+  },
+];
+
+// An item or income as the form needs it. Home Assistant's YAML editor can
+// store a date as a full timestamp, which the date field cannot show.
+const toEntry = (it) => {
+  const entry = Array.isArray(it) ? { name: it[0], amount: it[1] } : Object.assign({}, it);
+  for (const k of ["from", "until"]) if (entry[k] != null) entry[k] = toDay(entry[k]);
+  return entry;
+};
+
+const editorData = (config) => {
+  const data = Object.assign({ show_amounts: true, monthly_saving: true }, config, {
+    groups: (config.groups || []).map((g) => Object.assign({}, g, { items: (g.items || []).map(toEntry) })),
+  });
+  if (config.incomes) data.incomes = config.incomes.map(toEntry);
+  return data;
+};
+
+// Cleared fields leave empty values, which the card would read as set.
+const compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ""));
+
+// Everything the form does not show, such as `theme`, passes through untouched.
+const editorConfig = (data) => {
+  const config = compact(data);
+  config.groups = (config.groups || []).map((g) => Object.assign(compact(g), { items: (g.items || []).map(compact) }));
+  if (config.incomes?.length) config.incomes = config.incomes.map(compact);
+  else delete config.incomes;
+  for (const k of ["show_amounts", "monthly_saving"]) if (config[k] === true) delete config[k];
+  return config;
+};
+
+class BudgetSankeyCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+
+  setConfig(config) {
+    this._data = editorData(config);
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  _render() {
+    if (!this._data || !this._hass) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (field) => field.label;
+      this._form.addEventListener("value-changed", (e) => {
+        e.stopPropagation();
+        this._changed(e.detail.value);
+      });
+      this.shadowRoot.append(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = editorSchema(this._data);
+    this._form.data = this._data;
+  }
+
+  _changed(value) {
+    const config = editorConfig(value);
+    this._data = editorData(config);
+    this._render();
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+}
+
 class BudgetSankeyCard extends HTMLElement {
+  static async getConfigElement() {
+    await customElements.whenDefined("ha-form");
+    return document.createElement("budget-sankey-card-editor");
+  }
+
   // What the card picker previews and inserts. The figures are placeholders.
   static getStubConfig() {
     return {
@@ -1005,13 +1155,14 @@ class BudgetSankeyCard extends HTMLElement {
   }
 }
 
+customElements.define("budget-sankey-card-editor", BudgetSankeyCardEditor);
 customElements.define("budget-sankey-card", BudgetSankeyCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "budget-sankey-card",
   name: "Budget Sankey",
-  description: "Three-level sankey of a hand-maintained budget, defined in YAML",
+  description: "Three-level sankey of a hand-maintained budget",
   preview: true,
   documentationURL: "https://github.com/matteo-pacini/HASSBudgetCard",
 });

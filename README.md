@@ -1,6 +1,6 @@
 # Budget Sankey Card
 
-A Home Assistant dashboard card that draws your budget as a sankey: total, groups, line items. Figures live in the card's YAML, not in entities. Entries can start and end on set dates, and the card lets you step through upcoming changes.
+A Home Assistant dashboard card that draws your budget as a sankey: total, groups, line items. Figures live in the card's config, not in entities. Entries can start and end on set dates, and the card lets you step through upcoming changes.
 
 ![Budget Sankey Card on a dark theme](images/dark.png)
 
@@ -27,6 +27,11 @@ Or add this repository as a custom repository of type *Dashboard*.
 **Manual:** copy `budget-sankey-card.js` to `config/www/`, then add `/local/budget-sankey-card.js` as a JavaScript module resource.
 
 ## Usage
+
+Add the card from the dashboard editor and fill it in there, or write the YAML yourself.
+
+![Visual editor beside the card](images/editor.png)
+
 
 ```yaml
 type: custom:budget-sankey-card
@@ -98,6 +103,8 @@ groups:
 **Items and incomes** are a `[name, amount]` pair, or a `{name, amount}` mapping. Only the mapping form takes `from` and `until`: `YYYY-MM-DD` dates, both inclusive. Two dated entries with the same name read as one amount changing.
 
 **Colours** are any CSS colour, or a token: `viz-1` to `viz-8`, `money-out`, `pending`, `accent`.
+
+The visual editor covers everything above except `theme`, `strings`, `palette` and `key`, which it leaves as they are. Saving from it rewrites `[Rent, 1200]` pairs in the longer `name` and `amount` form. Its labels are in English, and it needs Home Assistant 2025.7 or later.
 
 ## Theme
 

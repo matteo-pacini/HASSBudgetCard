@@ -18,10 +18,33 @@ vm.runInContext(
   };
   class HTMLElement {
     attachShadow() {
-      return (this.shadowRoot = { innerHTML: "", querySelector: () => null, querySelectorAll: () => [] });
+      return (this.shadowRoot = {
+        innerHTML: "",
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        append() {},
+      });
+    }
+    dispatchEvent(event) {
+      (this.events = this.events || []).push(event);
     }
   }
-  var customElements = { define(name, cls) { this.name = name; this.cls = cls; } };
+  var CustomEvent = class {
+    constructor(type, options) {
+      this.type = type;
+      this.detail = options.detail;
+    }
+  };
+  var document = {
+    createElement: (name) => ({ name, addEventListener() {} }),
+  };
+  var customElements = {
+    define(name, cls) {
+      this.name = name;
+      this.cls = cls;
+    },
+    whenDefined: async () => {},
+  };
   var window = {};
   var ResizeObserver = class { observe() {} disconnect() {} };
   `,
@@ -34,7 +57,7 @@ module.exports = {
   // The card's top-level declarations, which are not properties of the
   // context's global object and so are fetched by name.
   card: vm.runInContext(
-    "({ VIZ, SEQ, fmt, resolveColor, toDay, today, dayAfter, fmtDay, activeOn, changelog, spread, layout, esc })",
+    "({ VIZ, SEQ, fmt, resolveColor, toDay, today, dayAfter, fmtDay, activeOn, changelog, spread, layout, esc, editorSchema, editorData, editorConfig, BudgetSankeyCardEditor })",
     ctx
   ),
 

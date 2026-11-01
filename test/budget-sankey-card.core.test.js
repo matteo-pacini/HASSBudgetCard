@@ -8,7 +8,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const { ctx, card: c, plain, setToday, make } = require("./budget-sankey-card.harness.js");
-const { VIZ, SEQ, fmt, resolveColor, today, fmtDay, spread, layout, esc } = c;
+const { VIZ, SEQ, fmt, resolveColor, today, fmtDay, spread, layout, esc, editorSchema, editorData, editorConfig, BudgetSankeyCardEditor } = c;
 
 const html = (el) => el.shadowRoot.innerHTML;
 
@@ -664,4 +664,87 @@ test("changelog text is escaped", () => {
   const el = make(oneGroup([["A", 1], { name: "<X>", amount: 1, from: "2027-01-01" }]));
   el._step(1);
   assert.deepEqual(log(el), [["Added G → &lt;X&gt; £1.00", VIZ.moneyOut]]);
+});
+
+const roundTrip = (config) => plain(editorConfig(editorData(config)));
+const fieldNames = (data) => plain(editorSchema(data)).map((f) => f.name);
+
+test("the card offers its editor", async () => {
+  const editor = await ctx.customElements.cls.getConfigElement();
+  assert.equal(editor.name, "budget-sankey-card-editor");
+});
+
+test("the editor shows pairs as mappings", () => {
+  const data = plain(editorData({ groups: [{ name: "G", items: [["Rent", 10]] }], incomes: [["Sam", 5]] }));
+  assert.deepEqual(data.groups[0].items, [{ name: "Rent", amount: 10 }]);
+  assert.deepEqual(data.incomes, [{ name: "Sam", amount: 5 }]);
+});
+
+test("the editor reduces stored timestamps to dates", () => {
+  const items = [{ name: "Rent", amount: 10, from: "2027-03-01T00:00:00.000Z" }];
+  assert.equal(editorData({ groups: [{ name: "G", items }] }).groups[0].items[0].from, "2027-03-01");
+});
+
+test("the editor shows the switches with their default of on", () => {
+  const data = editorData({ groups: [], monthly_saving: false });
+  assert.equal(data.show_amounts, true);
+  assert.equal(data.monthly_saving, false);
+});
+
+test("an unedited config keeps its meaning and everything the form hides", () => {
+  const config = {
+    type: "custom:budget-sankey-card",
+    title: "T",
+    key: "k",
+    palette: ["#111111"],
+    theme: { background: "transparent" },
+    strings: { left: "" },
+    show_amounts: false,
+    income: 0,
+    groups: [{ name: "G", color: "pending", items: [{ name: "Rent", amount: 0, until: "2027-01-01" }] }],
+  };
+  assert.deepEqual(roundTrip(config), config);
+});
+
+test("the editor removes cleared fields and on-by-default switches", () => {
+  const data = editorData({
+    title: "",
+    subtitle: null,
+    groups: [{ name: "G", color: "", items: [{ name: "Rent", amount: 10, from: "", until: null }] }],
+    incomes: [{ name: "Sam", amount: 5, until: "" }],
+  });
+  assert.deepEqual(plain(editorConfig(data)), {
+    groups: [{ name: "G", items: [{ name: "Rent", amount: 10 }] }],
+    incomes: [{ name: "Sam", amount: 5 }],
+  });
+});
+
+test("removing the last income clears the list", () => {
+  assert.deepEqual(roundTrip({ groups: [{ name: "G", items: [["A", 1]] }], incomes: [] }), {
+    groups: [{ name: "G", items: [{ name: "A", amount: 1 }] }],
+  });
+});
+
+test("the form offers only the income field that applies", () => {
+  const has = (data) => fieldNames(data).filter((n) => n === "income" || n === "incomes");
+  assert.deepEqual(has({}), ["income", "incomes"]);
+  assert.deepEqual(has({ income: 0 }), ["income"]);
+  assert.deepEqual(has({ incomes: [{ name: "Sam", amount: 5 }] }), ["incomes"]);
+});
+
+test("the editor reports a change without sending empty fields", () => {
+  const el = new BudgetSankeyCardEditor();
+  el.setConfig({ groups: [{ name: "G", items: [["A", 1]] }] });
+  el.hass = {};
+  el._changed(Object.assign({}, el._data, { title: "", subtitle: "S" }));
+  assert.equal(el.events[0].type, "config-changed");
+  assert.deepEqual(plain(el.events[0].detail.config), {
+    subtitle: "S",
+    groups: [{ name: "G", items: [{ name: "A", amount: 1 }] }],
+  });
+});
+
+test("every config the editor produces is one the card accepts", () => {
+  const config = { income: 100, groups: [{ name: "G", items: [["A", 1]] }] };
+  assert.doesNotThrow(() => make(roundTrip(config)));
 });
