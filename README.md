@@ -68,9 +68,9 @@ groups:
 | `groups` | required | List of groups, see below |
 | `income` | | Single income; the header shows in, out and left |
 | `incomes` | | One entry per earner, instead of `income` |
-| `title` | `Budget` | Card title |
+| `title` | `budget` string | Card title |
 | `subtitle` | | Line under the title |
-| `root` | `Budget` | Label of the root node |
+| `root` | `budget` string | Label of the root node |
 | `currency` | Home Assistant's | ISO 4217 code, such as `EUR` |
 | `locale` | Home Assistant's | BCP 47 tag, such as `de-DE`, for amounts and dates |
 | `accent` | `negative_color` | Colour of the root node and the outgoing total |
@@ -79,13 +79,14 @@ groups:
 | `saving_color` | purple | Monthly saving on a yearly card |
 | `palette` | built-in | List of colours for groups without their own `color`; repeats if shorter than `groups` |
 | `theme` | Home Assistant's | Overrides for the card's look, see below |
+| `strings` | translated | Overrides for the card's own text, see below |
 | `show_amounts` | `true` | Show amounts beside line items |
 | `monthly_saving` | `true` | Yearly card: show total / 12 |
 | `chart_height` | `620` | Scale of the chart in pixels; the card grows if it needs more room |
-| `income_label` | `IN` or `COMBINED INCOME` | Income heading |
-| `total_label` | `OUT` or `TOTAL` | Total heading |
-| `left_label` | `LEFT` | Left over heading |
-| `saving_label` | `SAVE / MONTH` | Monthly saving heading |
+| `income_label` | `in` or `combined_income` string | Income heading |
+| `total_label` | `out` or `total` string | Total heading |
+| `left_label` | `left` string | Left over heading |
+| `saving_label` | `save_month` string | Monthly saving heading |
 | `key` | `b` | Prefix for internal node IDs |
 
 **Groups** take a `name`, a list of `items` and an optional `color`.
@@ -118,6 +119,20 @@ theme:
 | `font_body` | body font | Body text |
 | `font_heading` | heading font | Title |
 | `font_mono` | code font | Figures |
+
+## Languages
+
+The card's own text follows `locale`, then your Home Assistant language. It is available in English, French, German, Italian and Spanish; any other language uses English text, with amounts and dates still in your locale.
+
+To change individual strings, use `strings`:
+
+```yaml
+strings:
+  today: Adesso
+  added: Nuovo {item} {amount}
+```
+
+Keys: `budget`, `in`, `combined_income`, `out`, `total`, `left`, `save_month`, `today`, `previous_change`, `next_change`, `added`, `removed`, `income`. Keep the `{item}`, `{amount}` and `{name}` placeholders.
 
 ## License
 

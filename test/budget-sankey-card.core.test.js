@@ -6,6 +6,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const vm = require("node:vm");
 const { ctx, card: c, plain, setToday, make } = require("./budget-sankey-card.harness.js");
 const { VIZ, SEQ, fmt, resolveColor, today, fmtDay, spread, layout, esc } = c;
 
@@ -460,6 +461,65 @@ test("the changelog and navigation use the configured locale", () => {
   el._step(1);
   assert.deepEqual(nav(el), { label: "Nov 1, 2026", prev: true, next: true });
   assert.deepEqual(log(el), [["Income Sam $300.00 → $800.00", VIZ.moneyIn]]);
+});
+
+test("interface text follows Home Assistant's language", () => {
+  const el = make(Object.assign(dated(), { currency: "EUR" }));
+  el.hass = { locale: { language: "it" } };
+  assert.deepEqual(stats(el).slice(2).map((s) => s[0]), ["ENTRATE TOTALI", "USCITE", "RIMANENTE"]);
+  assert.equal(nav(el).label, "Oggi");
+  assert.match(html(el), /title="Modifica successiva"/);
+  el._step(1);
+  assert.match(log(el)[0][0], /^Entrata Sam /);
+  el._step(1);
+  assert.match(log(el)[0][0], /^Rimosso Credit cards → Plan /);
+});
+
+test("a regional locale uses its language, and an untranslated one English", () => {
+  const de = make(Object.assign(oneGroup([["A", 1]]), { locale: "de-AT" }));
+  assert.deepEqual(stats(de).map((s) => s[0]), ["GESAMT", "SPAREN / MONAT"]);
+  const ko = make(Object.assign(oneGroup([["A", 1]]), { locale: "ko-KR" }));
+  assert.deepEqual(stats(ko).map((s) => s[0]), ["TOTAL", "SAVE / MONTH"]);
+});
+
+test("a language without its own term falls back to English for that term", () => {
+  assert.equal(stats(make(Object.assign(oneGroup([["A", 1]]), { locale: "fr" })))[0][0], "TOTAL");
+  assert.match(html(make(Object.assign(oneGroup([["A", 1]]), { locale: "fr" }))), /<b>Budget<\/b>/);
+});
+
+test("the default title and root are translated, explicit ones are not", () => {
+  const es = html(make(Object.assign(oneGroup([["A", 1]]), { locale: "es" })));
+  assert.match(es, /<h2 class="title">Presupuesto<\/h2>/);
+  assert.match(es, /<b>Presupuesto<\/b>/);
+  assert.match(html(make(Object.assign(oneGroup([["A", 1]]), { locale: "es", title: "Casa" }))), /class="title">Casa</);
+});
+
+test("strings override the translation, and a label option overrides strings", () => {
+  const cfg = Object.assign(oneGroup([["A", 1]]), { locale: "it", strings: { total: "SOMMA", save_month: "ACCANTONA" } });
+  assert.deepEqual(stats(make(cfg)).map((s) => s[0]), ["SOMMA", "ACCANTONA"]);
+  assert.equal(stats(make(Object.assign({}, cfg, { total_label: "X" })))[0][0], "X");
+});
+
+test("setConfig validates strings", () => {
+  const g = oneGroup([["A", 1]]).groups;
+  assert.throws(() => make({ groups: g, strings: "x" }), /`strings` must be a mapping/);
+  assert.throws(() => make({ groups: g, strings: { nope: "x" } }), /`strings` has no key 'nope'/);
+});
+
+test("earner names are uppercased for the card's locale", () => {
+  const el = make({ groups: earners().groups, incomes: [["ali", 1]], locale: "tr-TR" });
+  assert.equal(stats(el)[0][0], "ALİ");
+});
+
+test("translations only use keys and placeholders English has", () => {
+  const strings = vm.runInContext("STRINGS", ctx);
+  for (const [lang, table] of Object.entries(strings)) {
+    for (const [k, v] of Object.entries(table)) {
+      assert.ok(k in strings.en, lang + " has unknown key " + k);
+      const holes = (x) => (x.match(/\{\w+\}/g) || []).sort().join();
+      assert.equal(holes(v), holes(strings.en[k]), lang + "." + k);
+    }
+  }
 });
 
 test("getCardSize follows chart_height", () => {

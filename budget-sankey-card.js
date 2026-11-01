@@ -108,6 +108,90 @@ const fmtDay = (day, locale = DEFAULT_MONEY.locale) =>
     timeZone: "UTC",
   });
 
+// Interface text by language subtag. A language picks up whatever it lacks from
+// `en`, so a new key only has to be added there. `{item}`, `{amount}` and
+// `{name}` are filled in by fill(); they are templates because word order
+// differs between languages.
+const STRINGS = {
+  en: {
+    budget: "Budget",
+    in: "IN",
+    combined_income: "COMBINED INCOME",
+    out: "OUT",
+    total: "TOTAL",
+    left: "LEFT",
+    save_month: "SAVE / MONTH",
+    today: "Today",
+    previous_change: "Previous change",
+    next_change: "Next change",
+    added: "Added {item} {amount}",
+    removed: "Removed {item} {amount}",
+    income: "income {name}",
+  },
+  de: {
+    in: "EIN",
+    combined_income: "GESAMTEINKOMMEN",
+    out: "AUS",
+    total: "GESAMT",
+    left: "REST",
+    save_month: "SPAREN / MONAT",
+    today: "Heute",
+    previous_change: "Vorherige Änderung",
+    next_change: "Nächste Änderung",
+    added: "Hinzugefügt: {item} {amount}",
+    removed: "Entfernt: {item} {amount}",
+    income: "Einkommen {name}",
+  },
+  es: {
+    budget: "Presupuesto",
+    in: "ENTRADAS",
+    combined_income: "INGRESOS TOTALES",
+    out: "SALIDAS",
+    left: "RESTANTE",
+    save_month: "AHORRO / MES",
+    today: "Hoy",
+    previous_change: "Cambio anterior",
+    next_change: "Cambio siguiente",
+    added: "Añadido {item} {amount}",
+    removed: "Eliminado {item} {amount}",
+    income: "ingreso {name}",
+  },
+  fr: {
+    in: "ENTRÉES",
+    combined_income: "REVENU TOTAL",
+    out: "SORTIES",
+    left: "RESTE",
+    save_month: "ÉPARGNE / MOIS",
+    today: "Aujourd'hui",
+    previous_change: "Changement précédent",
+    next_change: "Changement suivant",
+    added: "Ajouté : {item} {amount}",
+    removed: "Supprimé : {item} {amount}",
+    income: "revenu {name}",
+  },
+  it: {
+    in: "ENTRATE",
+    combined_income: "ENTRATE TOTALI",
+    out: "USCITE",
+    total: "TOTALE",
+    left: "RIMANENTE",
+    save_month: "RISPARMIO / MESE",
+    today: "Oggi",
+    previous_change: "Modifica precedente",
+    next_change: "Modifica successiva",
+    added: "Aggiunto {item} {amount}",
+    removed: "Rimosso {item} {amount}",
+    income: "entrata {name}",
+  },
+};
+
+// The text for a BCP 47 locale: `overrides`, then its language, then English.
+const translate = (locale, overrides) =>
+  Object.assign({}, STRINGS.en, STRINGS[locale.split("-")[0].toLowerCase()], overrides);
+
+// A function replacement, so a `$` in an amount is taken literally.
+const fill = (template, values) => template.replace(/\{(\w+)\}/g, (_, k) => values[k]);
+
 // Reads the optional `from` / `until` of a mapping-form entry onto `out`.
 function readDates(it, out) {
   for (const k of ["from", "until"]) {
@@ -125,7 +209,7 @@ const activeOn = (day) => (it) => (!it.from || it.from <= day) && (!it.until || 
 // entries; `good` means the change raises what is left over. Entries match by
 // name within their group (or among incomes), so a dated pair of entries with
 // the same name reads as one amount changing.
-function changelog(c, a, b, money) {
+function changelog(c, a, b, money, t = STRINGS.en) {
   const snap = (day) => {
     const m = new Map();
     const add = (k, label, amount, sign) => {
@@ -134,7 +218,7 @@ function changelog(c, a, b, money) {
       m.set(k, e);
     };
     const on = activeOn(day);
-    (c.incomes || []).filter(on).forEach((i) => add("in\0" + i.name, "income " + i.name, i.amount, 1));
+    (c.incomes || []).filter(on).forEach((i) => add("in\0" + i.name, fill(t.income, { name: i.name }), i.amount, 1));
     c.groups.forEach((g) =>
       g.items.filter(on).forEach((it) => add("out\0" + g.name + "\0" + it.name, g.name + " → " + it.name, it.amount, -1))
     );
@@ -150,9 +234,9 @@ function changelog(c, a, b, money) {
     if (!delta) continue;
     const label = (x || y).label;
     const text = !x
-      ? "Added " + label + " " + fmt(y.amount, money)
+      ? fill(t.added, { item: label, amount: fmt(y.amount, money) })
       : !y
-        ? "Removed " + label + " " + fmt(x.amount, money)
+        ? fill(t.removed, { item: label, amount: fmt(x.amount, money) })
         : label[0].toUpperCase() + label.slice(1) + " " + fmt(x.amount, money) + " → " + fmt(y.amount, money);
     out.push({ text, good: delta * (x || y).sign > 0 });
   }
@@ -371,6 +455,14 @@ class BudgetSankeyCard extends HTMLElement {
     }
     for (const k of ["accent", "positive_color", "negative_color", "saving_color"]) checkColor(config[k], "`" + k + "`");
     checkTheme(config.theme);
+    if (config.strings != null) {
+      if (typeof config.strings !== "object" || Array.isArray(config.strings)) {
+        throw new Error("budget-sankey-card: `strings` must be a mapping");
+      }
+      for (const k of Object.keys(config.strings)) {
+        if (!(k in STRINGS.en)) throw new Error("budget-sankey-card: `strings` has no key '" + k + "'");
+      }
+    }
     if (config.palette != null) {
       if (!Array.isArray(config.palette) || !config.palette.length) {
         throw new Error("budget-sankey-card: `palette` must be a non-empty list");
@@ -480,6 +572,10 @@ class BudgetSankeyCard extends HTMLElement {
     if (now.currency !== was.currency || now.locale !== was.locale) this._render();
   }
 
+  _strings() {
+    return translate(this._money().locale, this._config.strings);
+  }
+
   _accent() {
     const c = this._config;
     return resolveColor(c.accent) || resolveColor(c.negative_color) || VIZ.moneyOut;
@@ -505,7 +601,7 @@ class BudgetSankeyCard extends HTMLElement {
     const groups = c.groups
       .map((g) => Object.assign({}, g, { items: g.items.filter(active) }))
       .filter((g) => g.items.length);
-    return { root: c.root || "Budget", groups };
+    return { root: c.root || this._strings().budget, groups };
   }
 
   // Moves to the next (dir 1) or previous (dir -1) stop; landing on today goes
@@ -539,6 +635,7 @@ class BudgetSankeyCard extends HTMLElement {
     const showAmounts = c.show_amounts !== false;
     const spec = this._spec();
     const money = this._money();
+    const t = this._strings();
     const l = layout(spec, c.key || "b", W, H, accent, this._hover, showAmounts, this._labelH, money);
     if (!l) return;
 
@@ -547,10 +644,10 @@ class BudgetSankeyCard extends HTMLElement {
     const at = stops.indexOf(day);
     const nav =
       stops.length > 1
-        ? { label: this._day ? fmtDay(day, money.locale) : "Today", prev: at > 0, next: at < stops.length - 1 }
+        ? { label: this._day ? fmtDay(day, money.locale) : t.today, prev: at > 0, next: at < stops.length - 1 }
         : null;
     // Shown for a future stop: what changed since the stop before it.
-    const log = at > 0 ? changelog(c, stops[at - 1], day, money) : [];
+    const log = at > 0 ? changelog(c, stops[at - 1], day, money, t) : [];
 
     // With income set the header becomes in / out / left, preceded by one row
     // per earner when `incomes` is used. Without income the card is a yearly
@@ -564,25 +661,25 @@ class BudgetSankeyCard extends HTMLElement {
         : Number(c.income);
     let stats;
     if (income == null) {
-      stats = [{ label: c.total_label || "TOTAL", value: fmt(l.total, money), color: accent }];
+      stats = [{ label: c.total_label || t.total, value: fmt(l.total, money), color: accent }];
       if (c.monthly_saving !== false) {
-        stats.push({ label: c.saving_label || "SAVE / MONTH", value: fmt(l.total / 12, money), color: resolveColor(c.saving_color) || VIZ.accent });
+        stats.push({ label: c.saving_label || t.save_month, value: fmt(l.total / 12, money), color: resolveColor(c.saving_color) || VIZ.accent });
       }
     } else {
       stats = (incomes || []).map((i) => ({
-        label: String(i.name).toUpperCase(),
+        label: String(i.name).toLocaleUpperCase(money.locale),
         value: fmt(i.amount, money),
         color: VIZ.textSecondary,
       }));
       stats.push(
         {
-          label: c.income_label || (incomes ? "COMBINED INCOME" : "IN"),
+          label: c.income_label || (incomes ? t.combined_income : t.in),
           value: fmt(income, money),
           color: positive,
         },
-        { label: c.total_label || "OUT", value: fmt(l.total, money), color: accent },
+        { label: c.total_label || t.out, value: fmt(l.total, money), color: accent },
         {
-          label: c.left_label || "LEFT",
+          label: c.left_label || t.left,
           value: fmt(income - l.total, money),
           color: income - l.total >= 0 ? positive : negative,
         }
@@ -687,15 +784,15 @@ class BudgetSankeyCard extends HTMLElement {
       <div class="card">
         <div class="head">
           <div>
-            <h2 class="title">${esc(c.title || "Budget")}</h2>
+            <h2 class="title">${esc(c.title || t.budget)}</h2>
             ${c.subtitle ? `<p class="sub">${esc(c.subtitle)}</p>` : ""}
           </div>
           <div class="side">
           ${
             nav
-              ? `<div class="nav"><button class="prev" title="Previous change"${nav.prev ? "" : " disabled"}>‹</button><span>${esc(
+              ? `<div class="nav"><button class="prev" title="${esc(t.previous_change)}"${nav.prev ? "" : " disabled"}>‹</button><span>${esc(
                   nav.label
-                )}</span><button class="next" title="Next change"${nav.next ? "" : " disabled"}>›</button></div>`
+                )}</span><button class="next" title="${esc(t.next_change)}"${nav.next ? "" : " disabled"}>›</button></div>`
               : ""
           }
           ${
