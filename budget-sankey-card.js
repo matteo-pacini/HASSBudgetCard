@@ -4,28 +4,45 @@
 // no entities; every figure comes from the card's own config, which is edited
 // through the Lovelace raw editor and stays in the Home Assistant instance.
 
+// Everything a theme can restyle, as the `theme` option names it. The defaults
+// follow the active Home Assistant theme; the literal fallbacks are for a theme
+// that omits a variable. Each key is published on :host as --bsc-<key>.
+const THEME = {
+  background: "var(--ha-card-background, var(--card-background-color, #1c1c1c))",
+  border: "var(--ha-card-border-color, var(--divider-color, #474747))",
+  divider: "var(--divider-color, #343746)",
+  highlight: "var(--secondary-text-color, #565973)",
+  text: "var(--primary-text-color, #f8f8f2)",
+  text_secondary: "var(--secondary-text-color, #b9bcd0)",
+  text_muted: "var(--disabled-text-color, #6272a4)",
+  chip_background: "var(--secondary-background-color, #2f313f)",
+  chip_shadow: "0 1px 2px rgba(15,16,22,.5)",
+  font_body: "var(--ha-font-family-body, Roboto, Noto, sans-serif)",
+  font_heading: "var(--ha-font-family-heading, var(--ha-font-family-body, Roboto, Noto, sans-serif))",
+  font_mono: "var(--ha-font-family-code, ui-monospace, monospace)",
+};
+const themeVar = (k) => "var(--bsc-" + k.replace(/_/g, "-") + ")";
+
 const VIZ = {
-  bg: "#21222c",
-  card: "#282a36",
-  raised: "var(--secondary-background-color, #2f313f)",
-  borderSubtle: "var(--divider-color, #343746)",
-  borderStrong: "var(--secondary-text-color, #565973)",
-  textPrimary: "var(--primary-text-color, #f8f8f2)",
-  textSecondary: "var(--secondary-text-color, #b9bcd0)",
-  textMuted: "var(--disabled-text-color, #6272a4)",
+  raised: themeVar("chip_background"),
+  borderSubtle: themeVar("divider"),
+  borderStrong: themeVar("highlight"),
+  textPrimary: themeVar("text"),
+  textSecondary: themeVar("text_secondary"),
+  textMuted: themeVar("text_muted"),
   moneyOut: "#ff5555",
   moneyIn: "#50fa7b",
   pending: "#ffb86c",
   accent: "#bd93f9",
-  shadow1: "0 1px 2px rgba(15,16,22,.5)",
+  shadow1: themeVar("chip_shadow"),
   seq: ["#bd93f9", "#8be9fd", "#ff79c6", "#50fa7b", "#ffb86c", "#f1fa8c", "#ff5555", "#6272a4"],
 };
 // Default group order: viz-5, viz-2, viz-3, viz-4, viz-1, viz-6, viz-7, viz-8.
 const SEQ = [VIZ.seq[4], VIZ.seq[1], VIZ.seq[2], VIZ.seq[3], VIZ.seq[0], VIZ.seq[5], VIZ.seq[6], VIZ.seq[7]];
 
-const FONT_BODY = "var(--ha-font-family-body, Roboto, Noto, sans-serif)";
-const FONT_DISPLAY = `var(--ha-font-family-heading, ${FONT_BODY})`;
-const FONT_MONO = "var(--ha-font-family-code, ui-monospace, monospace)";
+const FONT_BODY = themeVar("font_body");
+const FONT_DISPLAY = themeVar("font_heading");
+const FONT_MONO = themeVar("font_mono");
 
 // Used when neither the config nor Home Assistant supplies a value, which
 // includes the first render, before `hass` is set.
@@ -41,6 +58,23 @@ const NAMED = {
   "money-out": VIZ.moneyOut, pending: VIZ.pending, accent: VIZ.accent,
 };
 const resolveColor = (c) => (c == null ? null : NAMED[c] || c);
+
+// Font stacks may quote family names, but like colours must not close the
+// <style> block they land in.
+const checkTheme = (theme) => {
+  if (theme == null) return;
+  if (typeof theme !== "object" || Array.isArray(theme)) {
+    throw new Error("budget-sankey-card: `theme` must be a mapping");
+  }
+  for (const [k, v] of Object.entries(theme)) {
+    if (!(k in THEME)) throw new Error("budget-sankey-card: `theme` has no key '" + k + "'");
+    if (k.startsWith("font_")) {
+      if (!/^[\w\s,"'().-]+$/.test(v)) throw new Error("budget-sankey-card: `theme." + k + "` is not a valid font");
+    } else {
+      checkColor(v, "`theme." + k + "`");
+    }
+  }
+};
 
 // Colours reach both markup attributes and the <style> block, so anything that
 // could close either is refused. This admits names, hex, rgb()/hsl() and var().
@@ -335,7 +369,8 @@ class BudgetSankeyCard extends HTMLElement {
     if (!config || !Array.isArray(config.groups) || !config.groups.length) {
       throw new Error("budget-sankey-card: `groups` must be a non-empty list");
     }
-    for (const k of ["accent", "positive_color", "negative_color"]) checkColor(config[k], "`" + k + "`");
+    for (const k of ["accent", "positive_color", "negative_color", "saving_color"]) checkColor(config[k], "`" + k + "`");
+    checkTheme(config.theme);
     if (config.palette != null) {
       if (!Array.isArray(config.palette) || !config.palette.length) {
         throw new Error("budget-sankey-card: `palette` must be a non-empty list");
@@ -531,7 +566,7 @@ class BudgetSankeyCard extends HTMLElement {
     if (income == null) {
       stats = [{ label: c.total_label || "TOTAL", value: fmt(l.total, money), color: accent }];
       if (c.monthly_saving !== false) {
-        stats.push({ label: c.saving_label || "SAVE / MONTH", value: fmt(l.total / 12, money), color: VIZ.accent });
+        stats.push({ label: c.saving_label || "SAVE / MONTH", value: fmt(l.total / 12, money), color: resolveColor(c.saving_color) || VIZ.accent });
       }
     } else {
       stats = (incomes || []).map((i) => ({
@@ -558,16 +593,18 @@ class BudgetSankeyCard extends HTMLElement {
       <style>
         /* Container, not viewport: the header stacks whenever the card itself
            is narrow — on a phone, and equally in a narrow desktop column. */
-        :host { display: block; container-type: inline-size; }
-        /* Chrome and text come from the active Home Assistant theme: the card
-           sits among stock ha-cards, so a hardcoded surface reads as a foreign
-           panel, and fixed text colours fail on light themes. Only the sankey
-           itself and the money colours are Dracula. Fallbacks are for when a
-           theme omits a var. */
+        :host {
+          display: block; container-type: inline-size;
+          ${Object.keys(THEME)
+            .map((k) => `--bsc-${k.replace(/_/g, "-")}: ${resolveColor(c.theme?.[k]) || THEME[k]};`)
+            .join(" ")}
+        }
+        /* Chrome, text and fonts default to the active Home Assistant theme:
+           the card sits among stock ha-cards, so a fixed surface reads as a
+           foreign panel, and fixed text colours fail on light themes. */
         .card {
-          background: var(--ha-card-background, var(--card-background-color, #1c1c1c));
-          border: var(--ha-card-border-width, 1px) solid
-                  var(--ha-card-border-color, var(--divider-color, #474747));
+          background: var(--bsc-background);
+          border: var(--ha-card-border-width, 1px) solid var(--bsc-border);
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: var(--ha-card-box-shadow, none);
           padding: 18px 20px 22px;

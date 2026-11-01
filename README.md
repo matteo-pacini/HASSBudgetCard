@@ -68,7 +68,9 @@ groups:
 | `accent` | `negative_color` | Colour of the root node and the outgoing total |
 | `positive_color` | green | Income, a surplus, and good changes |
 | `negative_color` | red | A shortfall and bad changes |
+| `saving_color` | purple | Monthly saving on a yearly card |
 | `palette` | built-in | List of colours for groups without their own `color`; repeats if shorter than `groups` |
+| `theme` | Home Assistant's | Overrides for the card's look, see below |
 | `show_amounts` | `true` | Show amounts beside line items |
 | `monthly_saving` | `true` | Yearly card: show total / 12 |
 | `chart_height` | `620` | Scale of the chart in pixels; the card grows if it needs more room |
@@ -83,6 +85,31 @@ groups:
 **Items and incomes** are a `[name, amount]` pair, or a `{name, amount}` mapping. Only the mapping form takes `from` and `until`: `YYYY-MM-DD` dates, both inclusive. Two dated entries with the same name read as one amount changing.
 
 **Colours** are any CSS colour, or a token: `viz-1` to `viz-8`, `money-out`, `pending`, `accent`.
+
+## Theme
+
+The background, text, borders and fonts follow your Home Assistant theme. Override any of them under `theme`:
+
+```yaml
+theme:
+  background: transparent
+  font_heading: Georgia, serif
+```
+
+| Key | Default | Styles |
+| --- | --- | --- |
+| `background` | card background | Card surface |
+| `border` | card border | Card outline |
+| `divider` | divider colour | Chip and button borders |
+| `highlight` | secondary text colour | Chip border on hover |
+| `text` | primary text colour | Headings and hovered labels |
+| `text_secondary` | secondary text colour | Labels and amounts |
+| `text_muted` | disabled text colour | Dimmed labels on hover |
+| `chip_background` | secondary background colour | Chips |
+| `chip_shadow` | soft shadow | Chips, as a CSS `box-shadow` |
+| `font_body` | body font | Body text |
+| `font_heading` | heading font | Title |
+| `font_mono` | code font | Figures |
 
 ## License
 

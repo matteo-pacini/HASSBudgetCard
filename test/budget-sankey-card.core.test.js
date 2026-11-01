@@ -171,6 +171,23 @@ test("setConfig validates palette and money colours", () => {
   assert.throws(() => make({ groups: g, negative_color: "<x>" }), /`negative_color` is not a valid colour/);
 });
 
+test("theme overrides reach the card and the rest keep following Home Assistant", () => {
+  const el = html(make(Object.assign(oneGroup([["A", 1]]), { theme: { text: "viz-1", font_body: '"Comic Sans MS", serif' } })));
+  assert.ok(el.includes("--bsc-text: " + VIZ.seq[0] + ";"));
+  assert.ok(el.includes('--bsc-font-body: "Comic Sans MS", serif;'));
+  assert.ok(el.includes("--bsc-text-secondary: var(--secondary-text-color,"));
+  assert.ok(el.includes("--bsc-background: var(--ha-card-background,"));
+});
+
+test("setConfig validates theme", () => {
+  const g = oneGroup([["A", 1]]).groups;
+  assert.throws(() => make({ groups: g, theme: "dark" }), /`theme` must be a mapping/);
+  assert.throws(() => make({ groups: g, theme: { nope: "red" } }), /`theme` has no key 'nope'/);
+  assert.throws(() => make({ groups: g, theme: { text: "red;}" } }), /`theme.text` is not a valid colour/);
+  assert.throws(() => make({ groups: g, theme: { font_body: "x}</style>" } }), /`theme.font_body` is not a valid font/);
+  assert.doesNotThrow(() => make({ groups: g, theme: { chip_shadow: "0 1px 2px rgba(0,0,0,.5)", background: "transparent" } }));
+});
+
 test("setConfig resets the selected day and hover", () => {
   const el = make(oneGroup([["A", 1], { name: "B", amount: 1, from: "2027-01-01" }]));
   el._step(1);
@@ -401,6 +418,11 @@ test("positive_color and negative_color replace the money colours", () => {
 test("accent wins over negative_color for the total", () => {
   const el = make({ groups: earners().groups, income: 2000, negative_color: "#111111", accent: "#222222" });
   assert.equal(stats(el)[1][2], "#222222");
+});
+
+test("saving_color replaces the monthly saving colour", () => {
+  const el = make(Object.assign(oneGroup([["A", 120]]), { saving_color: "#00aa00" }));
+  assert.equal(stats(el)[1][2], "#00aa00");
 });
 
 test("the changelog uses the configured money colours", () => {
