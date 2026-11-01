@@ -63,3 +63,7 @@ Leave out `income` and `incomes` for a yearly card: it shows the total and the a
 **Items and incomes** are a `[name, amount]` pair, or a `{name, amount}` mapping. Only the mapping form takes `from` and `until`: `YYYY-MM-DD` dates, both inclusive. Two dated entries with the same name read as one amount changing.
 
 **Colours** are any CSS colour, or a token: `viz-1` to `viz-8`, `money-out`, `pending`, `accent`.
+
+## License
+
+MIT
