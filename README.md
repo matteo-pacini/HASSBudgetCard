@@ -2,11 +2,11 @@
 
 A Home Assistant dashboard card that draws your budget as a sankey: total, groups, line items. Figures live in the card's YAML, not in entities. Entries can start and end on set dates, and the card lets you step through upcoming changes.
 
-![Budget Sankey Card on a dark theme](https://raw.githubusercontent.com/matteo-pacini/HASSBudgetCard/master/images/dark.png)
+![Budget Sankey Card on a dark theme](images/dark.png)
 
 | Light theme | Upcoming change |
 | --- | --- |
-| ![Light theme](https://raw.githubusercontent.com/matteo-pacini/HASSBudgetCard/master/images/light.png) | ![Stepping to a future date](https://raw.githubusercontent.com/matteo-pacini/HASSBudgetCard/master/images/future.png) |
+| ![Light theme](images/light.png) | ![Stepping to a future date](images/future.png) |
 
 ## Install
 
