@@ -122,7 +122,7 @@ theme:
 
 ## Languages
 
-The card's own text follows `locale`, then your Home Assistant language. It is available in English, French, German, Italian and Spanish; any other language uses English text, with amounts and dates still in your locale.
+The card's own text follows `locale`, then your Home Assistant language. It is available in English, French, German, Italian, Portuguese, Brazilian Portuguese and Spanish; any other language uses English text, with amounts and dates still in your locale.
 
 To change individual strings, use `strings`:
 

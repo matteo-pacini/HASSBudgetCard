@@ -482,6 +482,19 @@ test("a regional locale uses its language, and an untranslated one English", () 
   assert.deepEqual(stats(ko).map((s) => s[0]), ["TOTAL", "SAVE / MONTH"]);
 });
 
+test("pt-BR overlays Brazilian terms on European Portuguese", () => {
+  const cfg = Object.assign(oneGroup([["A", 1]]), { locale: "pt-PT" });
+  assert.equal(stats(make(cfg))[1][0], "POUPANÇA / MÊS");
+  const br = make(Object.assign({}, cfg, { locale: "pt-BR" }));
+  assert.equal(stats(br)[1][0], "ECONOMIA / MÊS");
+  assert.match(html(br), /class="title">Orçamento</);
+});
+
+test("en-US has the same text as en-GB", () => {
+  const text = (locale) => stats(make(Object.assign(earners(), { locale }))).map((s) => s[0]);
+  assert.deepEqual(text("en-US"), text("en-GB"));
+});
+
 test("a language without its own term falls back to English for that term", () => {
   assert.equal(stats(make(Object.assign(oneGroup([["A", 1]]), { locale: "fr" })))[0][0], "TOTAL");
   assert.match(html(make(Object.assign(oneGroup([["A", 1]]), { locale: "fr" }))), /<b>Budget<\/b>/);

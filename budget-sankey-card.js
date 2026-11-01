@@ -108,10 +108,11 @@ const fmtDay = (day, locale = DEFAULT_MONEY.locale) =>
     timeZone: "UTC",
   });
 
-// Interface text by language subtag. A language picks up whatever it lacks from
-// `en`, so a new key only has to be added there. `{item}`, `{amount}` and
-// `{name}` are filled in by fill(); they are templates because word order
-// differs between languages.
+// Interface text by language, or language-REGION holding only what differs from
+// that language. Each picks up whatever it lacks from `en`, so a new key only has
+// to be added there. en-US has no entry: no term here differs from `en`.
+// `{item}`, `{amount}` and `{name}` are filled in by fill(); they are templates
+// because word order differs between languages.
 const STRINGS = {
   en: {
     budget: "Budget",
@@ -183,11 +184,35 @@ const STRINGS = {
     removed: "Rimosso {item} {amount}",
     income: "entrata {name}",
   },
+  pt: {
+    budget: "Orçamento",
+    in: "ENTRADAS",
+    combined_income: "RENDIMENTO TOTAL",
+    out: "SAÍDAS",
+    left: "RESTANTE",
+    save_month: "POUPANÇA / MÊS",
+    today: "Hoje",
+    previous_change: "Alteração anterior",
+    next_change: "Alteração seguinte",
+    added: "Adicionado {item} {amount}",
+    removed: "Removido {item} {amount}",
+    income: "rendimento {name}",
+  },
+  "pt-BR": {
+    combined_income: "RENDA TOTAL",
+    save_month: "ECONOMIA / MÊS",
+    previous_change: "Mudança anterior",
+    next_change: "Próxima mudança",
+    income: "renda {name}",
+  },
 };
 
-// The text for a BCP 47 locale: `overrides`, then its language, then English.
-const translate = (locale, overrides) =>
-  Object.assign({}, STRINGS.en, STRINGS[locale.split("-")[0].toLowerCase()], overrides);
+// The text for a BCP 47 locale: `overrides`, then its language-REGION, then its
+// language, then English.
+const translate = (locale, overrides) => {
+  const { language, region } = new Intl.Locale(locale);
+  return Object.assign({}, STRINGS.en, STRINGS[language], STRINGS[language + "-" + region], overrides);
+};
 
 // A function replacement, so a `$` in an amount is taken literally.
 const fill = (template, values) => template.replace(/\{(\w+)\}/g, (_, k) => values[k]);
