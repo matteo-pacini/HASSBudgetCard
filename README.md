@@ -8,6 +8,14 @@ A Home Assistant dashboard card that draws your budget as a sankey: total, group
 | --- | --- |
 | ![Light theme](images/light.png) | ![Stepping to a future date](images/future.png) |
 
+On a phone, the header stacks and the chart stays readable:
+
+<p>
+  <img src="images/mobile.png" alt="Monthly card on a phone, dark theme" width="250">
+  <img src="images/mobile-light.png" alt="Monthly card on a phone, light theme" width="250">
+  <img src="images/mobile-yearly.png" alt="Yearly card on a phone" width="250">
+</p>
+
 ## Install
 
 **HACS:** add this repository as a custom repository of type *Dashboard*, then download Budget Sankey Card.
