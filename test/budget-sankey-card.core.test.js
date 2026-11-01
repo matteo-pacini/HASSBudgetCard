@@ -456,6 +456,22 @@ test("a hass update that leaves the money settings alone does not redraw", () =>
   assert.equal(html(el), "untouched");
 });
 
+test("fmt groups four-digit amounts in every locale", () => {
+  assert.equal(fmt(1800, { currency: "PLN", locale: "pl" }), "1\u00a0800,00\u00a0zł");
+  assert.equal(fmt(1800, { currency: "EUR", locale: "it" }), "1.800,00\u00a0€");
+});
+
+test("fmt uses the plain currency symbol", () => {
+  assert.equal(fmt(1234.5, { currency: "GBP", locale: "pl" }), "1\u00a0234,50\u00a0£");
+  assert.equal(fmt(1234.5, { currency: "USD", locale: "sv" }), "1\u00a0234,50\u00a0$");
+  assert.equal(fmt(1234.5, { currency: "USD", locale: "en-GB" }), "$1,234.50");
+});
+
+test("the card declares its locale for font selection", () => {
+  const el = make(Object.assign(dated(), { locale: "zh-CN" }));
+  assert.match(html(el), /<div class="card" lang="zh-CN">/);
+});
+
 test("the changelog and navigation use the configured locale", () => {
   const el = make(Object.assign(dated(), { currency: "USD", locale: "en-US" }));
   el._step(1);

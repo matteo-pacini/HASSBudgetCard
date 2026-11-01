@@ -48,7 +48,11 @@ const FONT_MONO = themeVar("font_mono");
 // includes the first render, before `hass` is set.
 const DEFAULT_MONEY = { currency: "GBP", locale: "en-GB" };
 
-const fmt = (v, { currency, locale } = DEFAULT_MONEY) => v.toLocaleString(locale, { style: "currency", currency });
+// "always": locales such as Polish and Italian otherwise group 12 500 but not
+// 1800, which misaligns a column of amounts. narrowSymbol: the card shows one
+// currency, so £ needs no GBP or US$-style disambiguation, and it is shorter.
+const fmt = (v, { currency, locale } = DEFAULT_MONEY) =>
+  v.toLocaleString(locale, { style: "currency", currency, currencyDisplay: "narrowSymbol", useGrouping: "always" });
 
 // Accepts a palette token ("viz-5"), a semantic name ("money-out"), or any raw
 // CSS colour. Tokens keep the budget YAML free of hex codes.
@@ -809,7 +813,9 @@ class BudgetSankeyCard extends HTMLElement {
           overflow: hidden;
         }
         .head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:16px; }
-        .title { margin:0; font:600 20px/1.3 ${FONT_DISPLAY}; letter-spacing:-.01em; }
+        /* CJK text can break after any character, so without a floor the stats
+           squeeze a title down to one character per line. */
+        .title { margin:0; min-width:4em; font:600 20px/1.3 ${FONT_DISPLAY}; letter-spacing:-.01em; }
         .side { display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
         .log { margin:0; padding:0; list-style:none; font:500 11.5px/1.45 ${FONT_BODY}; text-align:right; }
         .nav { display:flex; align-items:center; gap:6px; font:500 12px ${FONT_MONO}; color:${VIZ.textSecondary}; }
@@ -822,7 +828,9 @@ class BudgetSankeyCard extends HTMLElement {
         .nav span { min-width:88px; text-align:center; }
         .sub { margin:4px 0 0; font:400 12px/1.3 ${FONT_BODY}; color:${VIZ.textSecondary}; }
         .stats { display:flex; gap:20px; flex-wrap:wrap; justify-content:flex-end; }
-        .totlab { font:500 11px ${FONT_MONO}; letter-spacing:.06em; color:${VIZ.textSecondary}; margin-bottom:4px; text-align:right; }
+        /* Fixed line height: a fallback CJK font is taller, which would drop
+           translated labels below the Latin names beside them. */
+        .totlab { font:500 11px/1.4 ${FONT_MONO}; letter-spacing:.06em; color:${VIZ.textSecondary}; margin-bottom:4px; text-align:right; }
         .tot { font:700 28px ${FONT_MONO}; letter-spacing:-.02em; color:${accent}; font-variant-numeric:tabular-nums; text-align:right; }
         .stats .tot.sm { font-size:22px; }
         .body { display:flex; align-items:stretch; width:100%; }
@@ -879,7 +887,7 @@ class BudgetSankeyCard extends HTMLElement {
           .stats .tot.sm { font-size:20px; }
         }
       </style>
-      <div class="card">
+      <div class="card" lang="${esc(money.locale)}">
         <div class="head">
           <div>
             <h2 class="title">${esc(c.title || t.budget)}</h2>
