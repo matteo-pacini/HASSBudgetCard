@@ -149,6 +149,28 @@ test("setConfig resolves group colours, defaulting by position", () => {
   assert.deepEqual(plain(el._config.groups.map((g) => g.color)), [VIZ.seq[1], SEQ[1], "#abcdef"]);
 });
 
+test("palette replaces the default group colours and repeats", () => {
+  const el = make({
+    palette: ["viz-2", "#abcdef"],
+    groups: [
+      { name: "A", items: [["a", 1]] },
+      { name: "B", items: [["b", 1]] },
+      { name: "C", items: [["c", 1]] },
+      { name: "D", color: "red", items: [["d", 1]] },
+    ],
+  });
+  assert.deepEqual(plain(el._config.groups.map((g) => g.color)), [VIZ.seq[1], "#abcdef", VIZ.seq[1], "red"]);
+});
+
+test("setConfig validates palette and money colours", () => {
+  const g = oneGroup([["A", 1]]).groups;
+  assert.throws(() => make({ groups: g, palette: [] }), /`palette` must be a non-empty list/);
+  assert.throws(() => make({ groups: g, palette: "red" }), /`palette` must be a non-empty list/);
+  assert.throws(() => make({ groups: g, palette: ["<x>"] }), /`palette` entry is not a valid colour/);
+  assert.throws(() => make({ groups: g, positive_color: "<x>" }), /`positive_color` is not a valid colour/);
+  assert.throws(() => make({ groups: g, negative_color: "<x>" }), /`negative_color` is not a valid colour/);
+});
+
 test("setConfig resets the selected day and hover", () => {
   const el = make(oneGroup([["A", 1], { name: "B", amount: 1, from: "2027-01-01" }]));
   el._step(1);
@@ -364,6 +386,27 @@ test("title, subtitle and root are rendered and escaped", () => {
   assert.match(el, /<p class="sub">&lt;b&gt;<\/p>/);
   assert.match(el, /<b>Pot<\/b>/);
   assert.match(el, /<span>&lt;A&gt;<\/span>/);
+});
+
+test("positive_color and negative_color replace the money colours", () => {
+  const cfg = { groups: earners().groups, income: 2000, positive_color: "#00aa00", negative_color: "viz-7" };
+  assert.deepEqual(stats(make(cfg)), [
+    ["IN", "£2,000.00", "#00aa00"],
+    ["OUT", "£1,000.00", VIZ.seq[6]],
+    ["LEFT", "£1,000.00", "#00aa00"],
+  ]);
+  assert.equal(stats(make(Object.assign({}, cfg, { income: 500 })))[2][2], VIZ.seq[6]);
+});
+
+test("accent wins over negative_color for the total", () => {
+  const el = make({ groups: earners().groups, income: 2000, negative_color: "#111111", accent: "#222222" });
+  assert.equal(stats(el)[1][2], "#222222");
+});
+
+test("the changelog uses the configured money colours", () => {
+  const el = make(Object.assign(dated(), { positive_color: "#00aa00" }));
+  el._step(1);
+  assert.equal(log(el)[0][1], "#00aa00");
 });
 
 test("show_amounts: false hides the leaf amounts but not the chip totals", () => {

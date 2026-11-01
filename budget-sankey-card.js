@@ -335,7 +335,14 @@ class BudgetSankeyCard extends HTMLElement {
     if (!config || !Array.isArray(config.groups) || !config.groups.length) {
       throw new Error("budget-sankey-card: `groups` must be a non-empty list");
     }
-    checkColor(config.accent, "`accent`");
+    for (const k of ["accent", "positive_color", "negative_color"]) checkColor(config[k], "`" + k + "`");
+    if (config.palette != null) {
+      if (!Array.isArray(config.palette) || !config.palette.length) {
+        throw new Error("budget-sankey-card: `palette` must be a non-empty list");
+      }
+      config.palette.forEach((p) => checkColor(p, "`palette` entry"));
+    }
+    const palette = config.palette ? config.palette.map(resolveColor) : SEQ;
     if (config.key != null && !/^[\w-]+$/.test(config.key)) {
       throw new Error("budget-sankey-card: `key` may only contain letters, digits, `_` and `-`");
     }
@@ -368,7 +375,7 @@ class BudgetSankeyCard extends HTMLElement {
       });
       // The default colour is fixed by config position here, before any items
       // are dated out, so a group keeps its colour on every day.
-      return { name: g.name, color: resolveColor(g.color) || SEQ[i % SEQ.length], items };
+      return { name: g.name, color: resolveColor(g.color) || palette[i % palette.length], items };
     });
     if (config.income != null && !Number.isFinite(Number(config.income))) {
       throw new Error("budget-sankey-card: `income` must be a number");
@@ -438,6 +445,11 @@ class BudgetSankeyCard extends HTMLElement {
     if (now.currency !== was.currency || now.locale !== was.locale) this._render();
   }
 
+  _accent() {
+    const c = this._config;
+    return resolveColor(c.accent) || resolveColor(c.negative_color) || VIZ.moneyOut;
+  }
+
   _money() {
     return {
       currency: this._config?.currency || this._hass?.config?.currency || DEFAULT_MONEY.currency,
@@ -486,7 +498,9 @@ class BudgetSankeyCard extends HTMLElement {
     // height it actually needs and the card grows to it.
     const H = c.chart_height || 620;
     const W = 470;
-    const accent = resolveColor(c.accent) || VIZ.moneyOut;
+    const accent = this._accent();
+    const positive = resolveColor(c.positive_color) || VIZ.moneyIn;
+    const negative = resolveColor(c.negative_color) || VIZ.moneyOut;
     const showAmounts = c.show_amounts !== false;
     const spec = this._spec();
     const money = this._money();
@@ -529,13 +543,13 @@ class BudgetSankeyCard extends HTMLElement {
         {
           label: c.income_label || (incomes ? "COMBINED INCOME" : "IN"),
           value: fmt(income, money),
-          color: VIZ.moneyIn,
+          color: positive,
         },
         { label: c.total_label || "OUT", value: fmt(l.total, money), color: accent },
         {
           label: c.left_label || "LEFT",
           value: fmt(income - l.total, money),
-          color: income - l.total >= 0 ? VIZ.moneyIn : VIZ.moneyOut,
+          color: income - l.total >= 0 ? positive : negative,
         }
       );
     }
@@ -650,7 +664,7 @@ class BudgetSankeyCard extends HTMLElement {
           ${
             log.length
               ? `<ul class="log">${log
-                  .map((e) => `<li style="color:${e.good ? VIZ.moneyIn : VIZ.moneyOut}">${esc(e.text)}</li>`)
+                  .map((e) => `<li style="color:${e.good ? positive : negative}">${esc(e.text)}</li>`)
                   .join("")}</ul>`
               : ""
           }
@@ -725,7 +739,7 @@ class BudgetSankeyCard extends HTMLElement {
     this._hover = id;
     const c = this._config;
     const H = c.chart_height || 620;
-    const accent = resolveColor(c.accent) || VIZ.moneyOut;
+    const accent = this._accent();
     const l = layout(
       this._spec(),
       c.key || "b",

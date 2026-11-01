@@ -36,6 +36,23 @@ groups:
 
 Leave out `income` and `incomes` for a yearly card: it shows the total and the amount to put aside each month.
 
+```yaml
+type: custom:budget-sankey-card
+title: Yearly bills
+root: Per year
+groups:
+  - name: Car
+    items:
+      - [Insurance, 480]
+      - [Service, 240]
+  - name: Home
+    items:
+      - [Boiler cover, 180]
+      - [Home insurance, 220]
+```
+
+![Yearly card](images/yearly.png)
+
 ## Options
 
 | Option | Default | Description |
@@ -48,7 +65,10 @@ Leave out `income` and `incomes` for a yearly card: it shows the total and the a
 | `root` | `Budget` | Label of the root node |
 | `currency` | Home Assistant's | ISO 4217 code, such as `EUR` |
 | `locale` | Home Assistant's | BCP 47 tag, such as `de-DE`, for amounts and dates |
-| `accent` | `money-out` | Colour of the root node and the outgoing total |
+| `accent` | `negative_color` | Colour of the root node and the outgoing total |
+| `positive_color` | green | Income, a surplus, and good changes |
+| `negative_color` | red | A shortfall and bad changes |
+| `palette` | built-in | List of colours for groups without their own `color`; repeats if shorter than `groups` |
 | `show_amounts` | `true` | Show amounts beside line items |
 | `monthly_saving` | `true` | Yearly card: show total / 12 |
 | `chart_height` | `620` | Scale of the chart in pixels; the card grows if it needs more room |
