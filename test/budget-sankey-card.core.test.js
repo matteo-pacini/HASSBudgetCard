@@ -456,6 +456,11 @@ test("a hass update that leaves the money settings alone does not redraw", () =>
   assert.equal(html(el), "untouched");
 });
 
+test("money colours default to the Home Assistant theme", () => {
+  assert.equal(VIZ.moneyIn, "var(--success-color, #50fa7b)");
+  assert.equal(VIZ.moneyOut, "var(--error-color, #ff5555)");
+});
+
 test("fmt groups four-digit amounts in every locale", () => {
   assert.equal(fmt(1800, { currency: "PLN", locale: "pl" }), "1\u00a0800,00\u00a0zł");
   assert.equal(fmt(1800, { currency: "EUR", locale: "it" }), "1.800,00\u00a0€");

@@ -78,8 +78,8 @@ groups:
 | `currency` | Home Assistant's | ISO 4217 code, such as `EUR` |
 | `locale` | Home Assistant's | BCP 47 tag, such as `de-DE`, for amounts and dates |
 | `accent` | `negative_color` | Colour of the root node and the outgoing total |
-| `positive_color` | green | Income, a surplus, and good changes |
-| `negative_color` | red | A shortfall and bad changes |
+| `positive_color` | success colour | Income, a surplus, and good changes |
+| `negative_color` | error colour | A shortfall and bad changes |
 | `saving_color` | purple | Monthly saving on a yearly card |
 | `palette` | built-in | List of colours for groups without their own `color`; repeats if shorter than `groups` |
 | `theme` | Home Assistant's | Overrides for the card's look, see below |
