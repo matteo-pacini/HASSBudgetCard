@@ -18,7 +18,11 @@ On a phone, the header stacks and the chart stays readable:
 
 ## Install
 
-**HACS:** add this repository as a custom repository of type *Dashboard*, then download Budget Sankey Card.
+**HACS:** use the button, then download Budget Sankey Card.
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=matteo-pacini&repository=HASSBudgetCard&category=plugin)
+
+Or add this repository as a custom repository of type *Dashboard*.
 
 **Manual:** copy `budget-sankey-card.js` to `config/www/`, then add `/local/budget-sankey-card.js` as a JavaScript module resource.
 
@@ -122,7 +126,15 @@ theme:
 
 ## Languages
 
-The card's own text follows `locale`, then your Home Assistant language. It is available in English, French, German, Italian, Portuguese, Brazilian Portuguese and Spanish; any other language uses English text, with amounts and dates still in your locale.
+<p>
+  <img src="images/lang-it.png" alt="Card in Italian with amounts in euros" width="250">
+  <img src="images/lang-de.png" alt="Card in German with amounts in euros" width="250">
+  <img src="images/lang-pt-BR.png" alt="Card in Brazilian Portuguese with amounts in reais" width="250">
+</p>
+
+The card's own text is available in English, French, German, Italian, Portuguese, Brazilian Portuguese and Spanish. It needs no setup: the card uses `locale` if set, otherwise your Home Assistant language.
+
+A regional locale uses its regional text if there is one, then its language, so `pt-BR` gets Brazilian Portuguese and `de-AT` gets German. Anything untranslated falls back to English. Amounts and dates always follow the locale, whichever language the text is in. Currency is separate: set `currency`, or it follows Home Assistant.
 
 To change individual strings, use `strings`:
 
