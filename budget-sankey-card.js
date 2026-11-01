@@ -108,9 +108,11 @@ const fmtDay = (day, locale = DEFAULT_MONEY.locale) =>
     timeZone: "UTC",
   });
 
-// Interface text by language, or language-REGION holding only what differs from
-// that language. Each picks up whatever it lacks from `en`, so a new key only has
-// to be added there. en-US has no entry: no term here differs from `en`.
+// Interface text by language, or by language-Script or language-REGION holding
+// only what differs from that language. Each picks up whatever it lacks from
+// `en`, so a new key only has to be added there. en-US has no entry: no term here
+// differs from `en`. Chinese is keyed by script alone, so Traditional stays English
+// rather than showing Simplified.
 // `{item}`, `{amount}` and `{name}` are filled in by fill(); they are templates
 // because word order differs between languages.
 const STRINGS = {
@@ -205,13 +207,84 @@ const STRINGS = {
     next_change: "Próxima mudança",
     income: "renda {name}",
   },
+  nl: {
+    in: "INKOMSTEN",
+    combined_income: "TOTALE INKOMSTEN",
+    out: "UITGAVEN",
+    total: "TOTAAL",
+    // Not OVER: beside an amount it reads as "more than".
+    left: "SALDO",
+    save_month: "SPAREN / MAAND",
+    today: "Vandaag",
+    previous_change: "Vorige wijziging",
+    next_change: "Volgende wijziging",
+    added: "Toegevoegd: {item} {amount}",
+    removed: "Verwijderd: {item} {amount}",
+    income: "inkomen {name}",
+  },
+  pl: {
+    budget: "Budżet",
+    in: "DOCHODY",
+    combined_income: "ŁĄCZNY DOCHÓD",
+    out: "WYDATKI",
+    total: "RAZEM",
+    left: "POZOSTAŁO",
+    save_month: "ODŁÓŻ / MIES.",
+    today: "Dzisiaj",
+    previous_change: "Poprzednia zmiana",
+    next_change: "Następna zmiana",
+    // Impersonal forms and the colon, as {item} can be any gender or case.
+    added: "Dodano: {item} {amount}",
+    removed: "Usunięto: {item} {amount}",
+    income: "dochód ({name})",
+  },
+  sv: {
+    in: "INKOMSTER",
+    combined_income: "TOTAL INKOMST",
+    out: "UTGIFTER",
+    total: "TOTALT",
+    left: "KVAR",
+    save_month: "SPARA / MÅNAD",
+    today: "I dag",
+    previous_change: "Föregående ändring",
+    next_change: "Nästa ändring",
+    // S-passive, as a participle would have to agree with {item}.
+    added: "Lades till: {item} {amount}",
+    removed: "Togs bort: {item} {amount}",
+    income: "inkomst {name}",
+  },
+  "zh-Hans": {
+    budget: "预算",
+    in: "收入",
+    combined_income: "总收入",
+    out: "支出",
+    total: "总计",
+    left: "结余",
+    save_month: "每月储蓄",
+    today: "今天",
+    previous_change: "上一次变更",
+    next_change: "下一次变更",
+    added: "新增 {item} {amount}",
+    removed: "移除 {item} {amount}",
+    income: "{name}的收入",
+  },
 };
 
 // The text for a BCP 47 locale: `overrides`, then its language-REGION, then its
-// language, then English.
+// language-Script, then its language, then English. Only the script comes from
+// maximize(), which would also turn plain `pt` into pt-BR.
 const translate = (locale, overrides) => {
-  const { language, region } = new Intl.Locale(locale);
-  return Object.assign({}, STRINGS.en, STRINGS[language], STRINGS[language + "-" + region], overrides);
+  const tag = new Intl.Locale(locale);
+  const { language, region } = tag;
+  const { script } = tag.maximize();
+  return Object.assign(
+    {},
+    STRINGS.en,
+    STRINGS[language],
+    STRINGS[language + "-" + script],
+    STRINGS[language + "-" + region],
+    overrides
+  );
 };
 
 // A function replacement, so a `$` in an amount is taken literally.

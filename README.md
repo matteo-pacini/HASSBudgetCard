@@ -132,9 +132,9 @@ theme:
   <img src="images/lang-pt-BR.png" alt="Card in Brazilian Portuguese with amounts in reais" width="250">
 </p>
 
-The card's own text is available in English, French, German, Italian, Portuguese, Brazilian Portuguese and Spanish. It needs no setup: the card uses `locale` if set, otherwise your Home Assistant language.
+The card's own text is available in English, Dutch, French, German, Italian, Polish, Portuguese, Brazilian Portuguese, Simplified Chinese, Spanish and Swedish. It needs no setup: the card uses `locale` if set, otherwise your Home Assistant language.
 
-A regional locale uses its regional text if there is one, then its language, so `pt-BR` gets Brazilian Portuguese and `de-AT` gets German. Anything untranslated falls back to English. Amounts and dates always follow the locale, whichever language the text is in. Currency is separate: set `currency`, or it follows Home Assistant.
+A regional locale uses its regional text if there is one, then its language, so `pt-BR` gets Brazilian Portuguese and `de-AT` gets German. Traditional Chinese is not translated yet, so it shows English rather than Simplified. Anything untranslated falls back to English. Amounts and dates always follow the locale, whichever language the text is in. Currency is separate: set `currency`, or it follows Home Assistant.
 
 To change individual strings, use `strings`:
 

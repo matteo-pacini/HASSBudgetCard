@@ -490,6 +490,30 @@ test("pt-BR overlays Brazilian terms on European Portuguese", () => {
   assert.match(html(br), /class="title">Orçamento</);
 });
 
+test("plain pt stays European Portuguese", () => {
+  const el = make(Object.assign(oneGroup([["A", 1]]), { locale: "pt" }));
+  assert.equal(stats(el)[1][0], "POUPANÇA / MÊS");
+});
+
+test("Chinese picks Simplified by script and leaves Traditional in English", () => {
+  const label = (locale) => stats(make(Object.assign(oneGroup([["A", 1]]), { locale })))[0][0];
+  for (const locale of ["zh-Hans", "zh-CN", "zh-Hans-CN", "zh-SG", "zh"]) assert.equal(label(locale), "总计", locale);
+  for (const locale of ["zh-Hant", "zh-TW", "zh-HK"]) assert.equal(label(locale), "TOTAL", locale);
+});
+
+test("the newer languages are picked up by language", () => {
+  const label = (locale) => stats(make(Object.assign(oneGroup([["A", 1]]), { locale })))[0][0];
+  assert.equal(label("nl-BE"), "TOTAAL");
+  assert.equal(label("pl-PL"), "RAZEM");
+  assert.equal(label("sv-FI"), "TOTALT");
+});
+
+test("the changelog puts the name where the language wants it", () => {
+  const el = make(Object.assign(dated(), { locale: "zh-Hans", currency: "CNY" }));
+  el._step(1);
+  assert.equal(log(el)[0][0], "Sam的收入 ¥300.00 → ¥800.00");
+});
+
 test("en-US has the same text as en-GB", () => {
   const text = (locale) => stats(make(Object.assign(earners(), { locale }))).map((s) => s[0]);
   assert.deepEqual(text("en-US"), text("en-GB"));
