@@ -36,6 +36,12 @@ test.beforeEach(() => setToday("2026-09-24"));
 test("registers the element and its card picker entry", () => {
   assert.equal(ctx.customElements.name, "budget-sankey-card");
   assert.deepEqual(plain(ctx.window.customCards.map((x) => x.type)), ["budget-sankey-card"]);
+  assert.equal(ctx.window.customCards[0].preview, true);
+});
+
+test("the stub config is one setConfig accepts", () => {
+  const stub = ctx.customElements.cls.getStubConfig();
+  assert.match(html(make(stub)), /<b>Home<\/b>/);
 });
 
 // --- formatting helpers -----------------------------------------------------
@@ -46,6 +52,15 @@ test("fmt puts the sign outside the pound sign and always shows pence", () => {
   assert.equal(fmt(2345.678), "£2,345.68");
   assert.equal(fmt(-123.45), "-£123.45");
   assert.equal(fmt(-1234567.8), "-£1,234,567.80");
+});
+
+test("fmt follows the currency and locale it is given", () => {
+  assert.equal(fmt(1234.5, { currency: "USD", locale: "en-US" }), "$1,234.50");
+  assert.equal(fmt(-1234.5, { currency: "EUR", locale: "de-DE" }), "-1.234,50\u00a0€");
+});
+
+test("fmtDay follows the locale it is given", () => {
+  assert.equal(fmtDay("2030-10-01", "en-US"), "Oct 1, 2030");
 });
 
 test("fmtDay renders a day in British order", () => {
@@ -141,6 +156,25 @@ test("setConfig resets the selected day and hover", () => {
   el.setConfig(oneGroup([["A", 1], { name: "B", amount: 1, from: "2027-01-01" }]));
   assert.equal(el._day, null);
   assert.equal(el._hover, null);
+});
+
+test("setConfig refuses colours and a key that could escape markup", () => {
+  const g = oneGroup([["A", 1]]).groups;
+  assert.throws(() => make({ groups: g, accent: "red}</style><script>" }), /`accent` is not a valid colour/);
+  assert.throws(() => make({ groups: [{ name: "G", color: 'x"><img>', items: [["A", 1]] }] }), /group 'G' `color` is not a valid colour/);
+  assert.throws(() => make({ groups: g, key: 'a"b' }), /`key` may only contain/);
+});
+
+test("setConfig accepts the usual colour notations", () => {
+  for (const color of ["red", "#abc", "rgb(1, 2, 3)", "rgb(1 2 3 / 50%)", "hsl(120, 50%, 50%)", "var(--my-colour)", "viz-3"]) {
+    assert.doesNotThrow(() => make({ groups: [{ name: "G", color, items: [["A", 1]] }] }));
+  }
+});
+
+test("setConfig refuses an invalid currency or locale", () => {
+  const g = oneGroup([["A", 1]]).groups;
+  assert.throws(() => make({ groups: g, currency: "pounds" }), /`currency` must be an ISO 4217 code/);
+  assert.throws(() => make({ groups: g, locale: "not a locale" }), /`locale` a BCP 47 tag/);
 });
 
 // --- spread -----------------------------------------------------------------
@@ -336,6 +370,31 @@ test("show_amounts: false hides the leaf amounts but not the chip totals", () =>
   const el = html(make(Object.assign(oneGroup([["A", 12]]), { show_amounts: false })));
   assert.match(el, /<span>A<\/span><i><\/i>/);
   assert.match(el, /<b>G<\/b><i>£12.00<\/i>/);
+});
+
+test("currency and locale come from the config, then hass, then the defaults", () => {
+  const el = make(earners());
+  assert.equal(stats(el)[0][1], "£2,000.00");
+  el.hass = { config: { currency: "USD" }, locale: { language: "en-US" } };
+  assert.equal(stats(el)[0][1], "$2,000.00");
+  const set = make(Object.assign(earners(), { currency: "EUR", locale: "de-DE" }));
+  set.hass = { config: { currency: "USD" }, locale: { language: "en-US" } };
+  assert.equal(stats(set)[0][1], "2.000,00\u00a0€");
+});
+
+test("a hass update that leaves the money settings alone does not redraw", () => {
+  const el = make(earners());
+  el.hass = { config: { currency: "GBP" }, locale: { language: "en-GB" } };
+  el.shadowRoot.innerHTML = "untouched";
+  el.hass = { config: { currency: "GBP" }, locale: { language: "en-GB" } };
+  assert.equal(html(el), "untouched");
+});
+
+test("the changelog and navigation use the configured locale", () => {
+  const el = make(Object.assign(dated(), { currency: "USD", locale: "en-US" }));
+  el._step(1);
+  assert.deepEqual(nav(el), { label: "Nov 1, 2026", prev: true, next: true });
+  assert.deepEqual(log(el), [["Income Sam $300.00 → $800.00", VIZ.moneyIn]]);
 });
 
 test("getCardSize follows chart_height", () => {

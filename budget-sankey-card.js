@@ -7,12 +7,12 @@
 const VIZ = {
   bg: "#21222c",
   card: "#282a36",
-  raised: "#2f313f",
-  borderSubtle: "#343746",
-  borderStrong: "#565973",
-  textPrimary: "#f8f8f2",
-  textSecondary: "#b9bcd0",
-  textMuted: "#6272a4",
+  raised: "var(--secondary-background-color, #2f313f)",
+  borderSubtle: "var(--divider-color, #343746)",
+  borderStrong: "var(--secondary-text-color, #565973)",
+  textPrimary: "var(--primary-text-color, #f8f8f2)",
+  textSecondary: "var(--secondary-text-color, #b9bcd0)",
+  textMuted: "var(--disabled-text-color, #6272a4)",
   moneyOut: "#ff5555",
   moneyIn: "#50fa7b",
   pending: "#ffb86c",
@@ -23,16 +23,15 @@ const VIZ = {
 // Default group order: viz-5, viz-2, viz-3, viz-4, viz-1, viz-6, viz-7, viz-8.
 const SEQ = [VIZ.seq[4], VIZ.seq[1], VIZ.seq[2], VIZ.seq[3], VIZ.seq[0], VIZ.seq[5], VIZ.seq[6], VIZ.seq[7]];
 
-const FONT_DISPLAY = '"Space Grotesk","Helvetica Neue",sans-serif';
-const FONT_BODY = '"IBM Plex Sans","Helvetica Neue",sans-serif';
-const FONT_MONO = '"JetBrains Mono","SFMono-Regular",ui-monospace,monospace';
+const FONT_BODY = "var(--ha-font-family-body, Roboto, Noto, sans-serif)";
+const FONT_DISPLAY = `var(--ha-font-family-heading, ${FONT_BODY})`;
+const FONT_MONO = "var(--ha-font-family-code, ui-monospace, monospace)";
 
-// Sign goes outside the symbol: -£12.34, not £-12.34. Only "left over" can
-// ever be negative.
-const fmt = (v) =>
-  (v < 0 ? "-" : "") +
-  "£" +
-  Math.abs(v).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Used when neither the config nor Home Assistant supplies a value, which
+// includes the first render, before `hass` is set.
+const DEFAULT_MONEY = { currency: "GBP", locale: "en-GB" };
+
+const fmt = (v, { currency, locale } = DEFAULT_MONEY) => v.toLocaleString(locale, { style: "currency", currency });
 
 // Accepts a palette token ("viz-5"), a semantic name ("money-out"), or any raw
 // CSS colour. Tokens keep the budget YAML free of hex codes.
@@ -42,6 +41,14 @@ const NAMED = {
   "money-out": VIZ.moneyOut, pending: VIZ.pending, accent: VIZ.accent,
 };
 const resolveColor = (c) => (c == null ? null : NAMED[c] || c);
+
+// Colours reach both markup attributes and the <style> block, so anything that
+// could close either is refused. This admits names, hex, rgb()/hsl() and var().
+const checkColor = (c, what) => {
+  if (c != null && !/^[#\w(),.%/\s-]+$/.test(c)) {
+    throw new Error("budget-sankey-card: " + what + " is not a valid colour");
+  }
+};
 
 // Dates are plain "YYYY-MM-DD" strings, compared lexicographically. The raw
 // editor's YAML parser turns an unquoted date into a Date at UTC midnight, which
@@ -59,8 +66,8 @@ const dayAfter = (day) => {
   d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 };
-const fmtDay = (day) =>
-  new Date(day + "T00:00:00Z").toLocaleDateString("en-GB", {
+const fmtDay = (day, locale = DEFAULT_MONEY.locale) =>
+  new Date(day + "T00:00:00Z").toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -84,7 +91,7 @@ const activeOn = (day) => (it) => (!it.from || it.from <= day) && (!it.until || 
 // entries; `good` means the change raises what is left over. Entries match by
 // name within their group (or among incomes), so a dated pair of entries with
 // the same name reads as one amount changing.
-function changelog(c, a, b) {
+function changelog(c, a, b, money) {
   const snap = (day) => {
     const m = new Map();
     const add = (k, label, amount, sign) => {
@@ -109,10 +116,10 @@ function changelog(c, a, b) {
     if (!delta) continue;
     const label = (x || y).label;
     const text = !x
-      ? "Added " + label + " " + fmt(y.amount)
+      ? "Added " + label + " " + fmt(y.amount, money)
       : !y
-        ? "Removed " + label + " " + fmt(x.amount)
-        : label[0].toUpperCase() + label.slice(1) + " " + fmt(x.amount) + " → " + fmt(y.amount);
+        ? "Removed " + label + " " + fmt(x.amount, money)
+        : label[0].toUpperCase() + label.slice(1) + " " + fmt(x.amount, money) + " → " + fmt(y.amount, money);
     out.push({ text, good: delta * (x || y).sign > 0 });
   }
   return out;
@@ -137,7 +144,7 @@ function spread(items, min, top, bottom) {
 // Pure layout: returns ribbon paths, node rects, leaf labels, group chips and
 // the height the chart actually needs. hover is a node id, or null.
 //
-// Hbase sets the scale (pixels per pound); the chart then grows to whatever
+// Hbase sets the scale (pixels per currency unit); the chart then grows to whatever
 // height the gaps and minimum bar sizes require, rather than being squeezed
 // into Hbase. Squeezing was the bug: clamping small leaves to a minimum height
 // made the stack overflow, and spreading the labels back apart slid them out of
@@ -153,7 +160,7 @@ function spread(items, min, top, bottom) {
 // taller than one line gets a wider gap to its neighbours, sized so the pair
 // still clears without spread() moving either label. Without labelH, or when
 // every label is one line, the layout is exactly the single-line one.
-function layout(spec, key, W, Hbase, rootColor, hover, showAmounts, labelH) {
+function layout(spec, key, W, Hbase, rootColor, hover, showAmounts, labelH, money) {
   const GAP = 14; // between leaves of the same group
   const GROUP_GAP = 30; // between groups, so the boundary is unmistakable
   const MIN_LEAF = 3;
@@ -271,8 +278,8 @@ function layout(spec, key, W, Hbase, rootColor, hover, showAmounts, labelH) {
       // their group's vertical band, so without this a label can sit level
       // with a neighbouring group's chip and look like it belongs to it.
       dot: l.color,
-      amount: showAmounts ? fmt(l.v) : "",
-      tip: spec.groups[l.g].name + " → " + l.name + "  " + fmt(l.v),
+      amount: showAmounts ? fmt(l.v, money) : "",
+      tip: spec.groups[l.g].name + " → " + l.name + "  " + fmt(l.v, money),
       fill: hover ? (rel ? VIZ.textPrimary : VIZ.textMuted) : VIZ.textSecondary,
     };
   });
@@ -285,7 +292,7 @@ function layout(spec, key, W, Hbase, rootColor, hover, showAmounts, labelH) {
       top: pctY(it.y),
       tf: "translateX(-50%)",
       name: it.m.name,
-      amount: fmt(it.m.v),
+      amount: fmt(it.m.v, money),
       stroke: hover === it.m.id ? VIZ.borderStrong : VIZ.borderSubtle,
     })
   );
@@ -295,7 +302,7 @@ function layout(spec, key, W, Hbase, rootColor, hover, showAmounts, labelH) {
     top: "0%",
     tf: "none",
     name: root.name,
-    amount: fmt(root.v),
+    amount: fmt(root.v, money),
     stroke: hover === root.id ? VIZ.borderStrong : VIZ.borderSubtle,
   });
 
@@ -306,6 +313,18 @@ const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 class BudgetSankeyCard extends HTMLElement {
+  // What the card picker previews and inserts. The figures are placeholders.
+  static getStubConfig() {
+    return {
+      title: "Budget",
+      income: 3000,
+      groups: [
+        { name: "Home", items: [["Rent", 1000], ["Energy", 150]] },
+        { name: "Living", items: [["Groceries", 400], ["Transport", 100]] },
+      ],
+    };
+  }
+
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -316,6 +335,15 @@ class BudgetSankeyCard extends HTMLElement {
     if (!config || !Array.isArray(config.groups) || !config.groups.length) {
       throw new Error("budget-sankey-card: `groups` must be a non-empty list");
     }
+    checkColor(config.accent, "`accent`");
+    if (config.key != null && !/^[\w-]+$/.test(config.key)) {
+      throw new Error("budget-sankey-card: `key` may only contain letters, digits, `_` and `-`");
+    }
+    try {
+      fmt(0, { currency: config.currency || DEFAULT_MONEY.currency, locale: config.locale || DEFAULT_MONEY.locale });
+    } catch {
+      throw new Error("budget-sankey-card: `currency` must be an ISO 4217 code and `locale` a BCP 47 tag");
+    }
     // Items accept either the compact `- [Rent, 1234.56]` pair or the
     // explicit `- {name: …, amount: …}` mapping. The budget YAML is hand-edited,
     // so the terse form is the one that keeps it readable.
@@ -324,6 +352,7 @@ class BudgetSankeyCard extends HTMLElement {
     // holds for `incomes`.
     const groups = config.groups.map((g, i) => {
       if (!g.name) throw new Error("budget-sankey-card: group " + i + " has no name");
+      checkColor(g.color, "group '" + g.name + "' `color`");
       if (!Array.isArray(g.items) || !g.items.length) {
         throw new Error("budget-sankey-card: group '" + g.name + "' has no items");
       }
@@ -401,8 +430,20 @@ class BudgetSankeyCard extends HTMLElement {
     this._resize?.disconnect();
   }
 
-  // Static document: nothing to recompute when hass updates.
-  set hass(_) {}
+  // The figures are static, so only a change of the money settings redraws.
+  set hass(hass) {
+    const was = this._money();
+    this._hass = hass;
+    const now = this._money();
+    if (now.currency !== was.currency || now.locale !== was.locale) this._render();
+  }
+
+  _money() {
+    return {
+      currency: this._config?.currency || this._hass?.config?.currency || DEFAULT_MONEY.currency,
+      locale: this._config?.locale || this._hass?.locale?.language || DEFAULT_MONEY.locale,
+    };
+  }
 
   // Today, then every later change point: the days the navigation visits.
   _stops() {
@@ -448,7 +489,8 @@ class BudgetSankeyCard extends HTMLElement {
     const accent = resolveColor(c.accent) || VIZ.moneyOut;
     const showAmounts = c.show_amounts !== false;
     const spec = this._spec();
-    const l = layout(spec, c.key || "b", W, H, accent, this._hover, showAmounts, this._labelH);
+    const money = this._money();
+    const l = layout(spec, c.key || "b", W, H, accent, this._hover, showAmounts, this._labelH, money);
     if (!l) return;
 
     const stops = this._stops();
@@ -456,10 +498,10 @@ class BudgetSankeyCard extends HTMLElement {
     const at = stops.indexOf(day);
     const nav =
       stops.length > 1
-        ? { label: this._day ? fmtDay(day) : "Today", prev: at > 0, next: at < stops.length - 1 }
+        ? { label: this._day ? fmtDay(day, money.locale) : "Today", prev: at > 0, next: at < stops.length - 1 }
         : null;
     // Shown for a future stop: what changed since the stop before it.
-    const log = at > 0 ? changelog(c, stops[at - 1], day) : [];
+    const log = at > 0 ? changelog(c, stops[at - 1], day, money) : [];
 
     // With income set the header becomes in / out / left, preceded by one row
     // per earner when `incomes` is used. Without income the card is a yearly
@@ -473,26 +515,26 @@ class BudgetSankeyCard extends HTMLElement {
         : Number(c.income);
     let stats;
     if (income == null) {
-      stats = [{ label: c.total_label || "TOTAL", value: fmt(l.total), color: accent }];
+      stats = [{ label: c.total_label || "TOTAL", value: fmt(l.total, money), color: accent }];
       if (c.monthly_saving !== false) {
-        stats.push({ label: c.saving_label || "SAVE / MONTH", value: fmt(l.total / 12), color: VIZ.accent });
+        stats.push({ label: c.saving_label || "SAVE / MONTH", value: fmt(l.total / 12, money), color: VIZ.accent });
       }
     } else {
       stats = (incomes || []).map((i) => ({
         label: String(i.name).toUpperCase(),
-        value: fmt(i.amount),
+        value: fmt(i.amount, money),
         color: VIZ.textSecondary,
       }));
       stats.push(
         {
           label: c.income_label || (incomes ? "COMBINED INCOME" : "IN"),
-          value: fmt(income),
+          value: fmt(income, money),
           color: VIZ.moneyIn,
         },
-        { label: c.total_label || "OUT", value: fmt(l.total), color: accent },
+        { label: c.total_label || "OUT", value: fmt(l.total, money), color: accent },
         {
           label: c.left_label || "LEFT",
-          value: fmt(income - l.total),
+          value: fmt(income - l.total, money),
           color: income - l.total >= 0 ? VIZ.moneyIn : VIZ.moneyOut,
         }
       );
@@ -503,10 +545,11 @@ class BudgetSankeyCard extends HTMLElement {
         /* Container, not viewport: the header stacks whenever the card itself
            is narrow — on a phone, and equally in a narrow desktop column. */
         :host { display: block; container-type: inline-size; }
-        /* Chrome comes from the active Home Assistant theme, not the Dracula
-           palette below: the card sits among stock ha-cards, so a hardcoded
-           surface reads as a foreign panel. Only the sankey itself is Dracula.
-           Fallbacks match HA's own defaults for when a theme omits a var. */
+        /* Chrome and text come from the active Home Assistant theme: the card
+           sits among stock ha-cards, so a hardcoded surface reads as a foreign
+           panel, and fixed text colours fail on light themes. Only the sankey
+           itself and the money colours are Dracula. Fallbacks are for when a
+           theme omits a var. */
         .card {
           background: var(--ha-card-background, var(--card-background-color, #1c1c1c));
           border: var(--ha-card-border-width, 1px) solid
@@ -514,7 +557,7 @@ class BudgetSankeyCard extends HTMLElement {
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: var(--ha-card-box-shadow, none);
           padding: 18px 20px 22px;
-          color: var(--primary-text-color, ${VIZ.textPrimary});
+          color: ${VIZ.textPrimary};
           font: 400 14px/1.55 ${FONT_BODY};
           box-sizing: border-box;
           overflow: hidden;
@@ -523,17 +566,17 @@ class BudgetSankeyCard extends HTMLElement {
         .title { margin:0; font:600 20px/1.3 ${FONT_DISPLAY}; letter-spacing:-.01em; }
         .side { display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
         .log { margin:0; padding:0; list-style:none; font:500 11.5px/1.45 ${FONT_BODY}; text-align:right; }
-        .nav { display:flex; align-items:center; gap:6px; font:500 12px ${FONT_MONO}; color:var(--secondary-text-color, ${VIZ.textMuted}); }
+        .nav { display:flex; align-items:center; gap:6px; font:500 12px ${FONT_MONO}; color:${VIZ.textSecondary}; }
         .nav button {
           width:24px; height:24px; padding:0; border-radius:5px; cursor:pointer;
-          border:1px solid var(--divider-color, ${VIZ.borderSubtle}); background:transparent;
-          color:var(--primary-text-color, ${VIZ.textPrimary}); font:500 14px/1 ${FONT_MONO};
+          border:1px solid ${VIZ.borderSubtle}; background:transparent;
+          color:${VIZ.textPrimary}; font:500 14px/1 ${FONT_MONO};
         }
         .nav button:disabled { opacity:.3; cursor:default; }
         .nav span { min-width:88px; text-align:center; }
-        .sub { margin:4px 0 0; font:400 12px/1.3 ${FONT_BODY}; color:var(--secondary-text-color, ${VIZ.textMuted}); }
+        .sub { margin:4px 0 0; font:400 12px/1.3 ${FONT_BODY}; color:${VIZ.textSecondary}; }
         .stats { display:flex; gap:20px; flex-wrap:wrap; justify-content:flex-end; }
-        .totlab { font:500 11px ${FONT_MONO}; letter-spacing:.06em; color:var(--secondary-text-color, ${VIZ.textMuted}); margin-bottom:4px; text-align:right; }
+        .totlab { font:500 11px ${FONT_MONO}; letter-spacing:.06em; color:${VIZ.textSecondary}; margin-bottom:4px; text-align:right; }
         .tot { font:700 28px ${FONT_MONO}; letter-spacing:-.02em; color:${accent}; font-variant-numeric:tabular-nums; text-align:right; }
         .stats .tot.sm { font-size:22px; }
         .body { display:flex; align-items:stretch; width:100%; }
@@ -564,7 +607,7 @@ class BudgetSankeyCard extends HTMLElement {
           overflow-wrap:anywhere;
         }
         .lab em { flex:0 0 auto; width:7px; height:7px; border-radius:2px; margin-top:calc((1.25em - 7px) / 2); }
-        .lab i { font:500 11px/1.25 ${FONT_MONO}; color:${VIZ.textMuted}; font-style:normal; font-variant-numeric:tabular-nums; flex:0 0 auto; margin-left:auto; }
+        .lab i { font:500 11px/1.25 ${FONT_MONO}; color:${VIZ.textSecondary}; font-style:normal; font-variant-numeric:tabular-nums; flex:0 0 auto; margin-left:auto; }
         /* On a phone the plot has room to spare while names were cut to ~70px,
            so the rail takes up to half the card. */
         @media (max-width: 600px) { .rail { width:min(206px,50%); flex-basis:min(206px,50%); } }
@@ -691,7 +734,8 @@ class BudgetSankeyCard extends HTMLElement {
       accent,
       id,
       c.show_amounts !== false,
-      this._labelH
+      this._labelH,
+      this._money()
     );
     if (!l) return;
     const root = this.shadowRoot;
@@ -714,4 +758,6 @@ window.customCards.push({
   type: "budget-sankey-card",
   name: "Budget Sankey",
   description: "Three-level sankey of a hand-maintained budget, defined in YAML",
+  preview: true,
+  documentationURL: "https://github.com/matteo-pacini/HASSBudgetCard",
 });
